@@ -81,7 +81,7 @@ except:
     file_not_exist = True
 
 # Request new token if it has or will expire within 5 minutes, or dosen't exist yet
-if file_not_exist or now > expiration:
+if file_not_exist or now + datetime.timedelta(minutes=5) > expiration:
     password = input('\n\nSecurity token not found or expired.\nPlease enter your Roadway Analytics password to request new token: ') 
     security_token_json = {"email" : email,"password" : password}
     r = requests.post(security_token_url, json = security_token_json)
