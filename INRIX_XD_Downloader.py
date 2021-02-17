@@ -10,7 +10,7 @@
 
 
 #############################################################################
-    ## Let's begin!
+    ## 
     ## DEFINE VARIABLES & IMPORT MODULES
     ##
     #########################################################################
@@ -38,9 +38,8 @@ import time
 import urllib.request
 import os
 import zipfile
+import pandas as pd
 
-import sys
-import csv
 
 ## ROADWAY ANALYTICS API URL's ##
 security_token_url = 'https://roadway-analytics-api.inrix.com/v1/auth'
@@ -59,6 +58,7 @@ data_download_json = { "unit": "IMPERIAL", "fields": fields, "xdSegIds": xd_segm
 "reportType": "DATA_DOWNLOAD", "granularity": bin_size, #"emailAddresses": [ email ], #optionally, INRIX can send you an email when the download is ready
 "includeClosures": "false" }
 
+
 #############################################################################
     ##
     ## OBTAIN SECURITY TOKEN
@@ -67,10 +67,9 @@ data_download_json = { "unit": "IMPERIAL", "fields": fields, "xdSegIds": xd_segm
 # The security token is stored in a .pickle file, in the user specified folder, and named with the user specified name
 # The token is stored so it can be reused for subsequent requests
 # This is done because the documentation asks us not to request a new token until the previous token has expired
-# The code below will check if the token stored in the .pickle file has expired
 # If there is no security token file (first time running the code) OR the token has expired, a new one will be requested
 
-# Open pickle file and check if security token has expired
+# Open pickle file and read security token and it's expiration time
 print('\n\n', '-' * 80, '\n Checking if security token is valid. Please wait.\n', '-' * 80, '\n\n')
 try:
     with open(folder + security_token_filename, 'rb') as handle:
@@ -81,9 +80,9 @@ try:
 except:
     file_not_exist = True
 
-# Request new token if it has expired or dosen't exist yet
+# Request new token if it has or will expire within 5 minutes, or dosen't exist yet
 if file_not_exist or now > expiration:
-    password = input('\n\nSecurity token not found or expired.\nPlease enter your Roadway Analytics password to request new token: ') #'Shawn_s_PasswordAPI'
+    password = input('\n\nSecurity token not found or expired.\nPlease enter your Roadway Analytics password to request new token: ') 
     security_token_json = {"email" : email,"password" : password}
     r = requests.post(security_token_url, json = security_token_json)
     security_token = r.json()["result"]["accessToken"]["token"]
@@ -91,6 +90,12 @@ if file_not_exist or now > expiration:
         pickle.dump(r, handle, protocol=pickle.HIGHEST_PROTOCOL)
 # Now an active security token is stored in the security_token variable
 
+
+#############################################################################
+    ##
+    ## POST THE REQUEST AND WAIT UNTIL REPORT IS READY
+    ##
+    #########################################################################
 # This step uses the security token and user inputs to request historical XD segment data
 r = requests.post(data_download_url, json = data_download_json, headers={"Authorization": "Bearer " + security_token})
 
@@ -106,8 +111,14 @@ while job_status_state == 'IN_PROGRESS':
     time.sleep(seconds_to_sleep)
  
 # If we've made it through the while loop sucessuflly, that should mean the report is ready! :)
-print('\n\n', '-' * 80, '\n REQUEST SUCCESS!!!\n\n Please wait while while data is downloaded and organized.\n', '-' * 80, '\n\n')
+print('\n\n', '-' * 80, '\n REQUEST SUCCESS!!!\n\n Please wait while data is downloaded and organized.\n', '-' * 80, '\n\n')
 
+
+#############################################################################
+    ##
+    ## DOWNLOAD AND EXTRACT REPORT
+    ##
+    #########################################################################
 # Get the download link for the report
 r = requests.get(report_download_url + report_id, headers={"Authorization": "Bearer " + security_token})
 download_link = r.json()["urls"]
@@ -138,5 +149,20 @@ while emergency_exit <= 10:
         emergency_exit += 1
 
 
-print('\n\n', '-' * 80, '\n DOWNLOAD SUCCESS!\n Everything is now complete, you may access the data in your specified folder.\n', '-' * 80, '\n\n')
+#############################################################################
+    ##
+    ## CONVERT TIMESTAMP TO DATETIME
+    ##
+    #########################################################################
+print('\nConverting Date Time column to timestamp format which can be read by Excel, this could take a while, please wait.\n')
+# Read csv file into a dataframe
+df = pd.read_csv(folder + data_name + conflict_check + '/data.csv')
+# Convert Date Time column to datetime formate
+df['Date Time'] = pd.to_datetime(df['Date Time'])
+# Remove timezone
+df['Date Time'] = df['Date Time'].dt.tz_localize(None)
+# Write back to the file
+df.to_csv(folder + data_name + conflict_check + '/data.csv', index=False)
+
+print('\n\n', '-' * 80, '\n DOWNLOAD SUCCESS!\n Everything is now complete, you may access the data in ' + folder + '\n', '-' * 80, '\n\n')
 
