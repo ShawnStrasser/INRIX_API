@@ -14,15 +14,15 @@
 ## USER DEFINED VARIABLES ##
 folder = '//scdata2/signalshar/Data_Analysis/INRIX_API/Speed_Data/' #define the working folder where data will be saved, make sure your segments.txt file is there
 xd_segment_filename = 'segments.txt' # rename as needed, but must be a text file with segments separated by commas
-start_date = '2020-10-01' # format must be 'yyyy-mm-dd'
-end_date = '2020-10-30'   # end date is inclusive
+start_date = '2021-11-5' # format must be 'yyyy-mm-dd'
+end_date = '2021-11-07'   # end date is inclusive, and MUST BE BEFORE TODAY
 bin_size = 15 # (1, 5, 15, or 60)
 days_of_week = [ 1, 2, 3, 4, 5, 6, 7 ]
 data_name = 'data' + start_date + '_' + end_date # name of the folder with the downloaded data
 security_token_filename = 'security_token.pickle'
 timezone = 'PST8PDT'
-fields = [ "LOCAL_DATE_TIME", "XDSEGID", "SPEED", "TRAVEL_TIME", "CVALUE" ] # see documentation for available options
-map_version = '2002'
+fields = [ "LOCAL_DATE_TIME", "XDSEGID", "SPEED", "TRAVEL_TIME", "CVALUE", "REF_SPEED" ] # see documentation for available options
+map_version = '2102' #currently on version 21.2 (2102) there is a new version twice per year, so this needs to be updated
 seconds_to_sleep = 5
 
 # daily_folder is where daily downloads will be stored. it is not used in this module, it will only be used by the Daily_Downloader module
@@ -73,11 +73,19 @@ def create_json():
     with open(folder + xd_segment_filename, 'r') as file:
         xd_segments = file.read().split(',')
 
-    data_download_json = { "unit": "IMPERIAL", "fields": fields, "xdSegIds": xd_segments, "timezone": timezone, 
-    "dateRanges": [ { "start": start_date, "end": end_date, "daysOfWeek": days_of_week } ], "mapVersion": map_version, 
-    "reportType": "DATA_DOWNLOAD", "granularity": bin_size, #"emailAddresses": [ email ], #optionally, INRIX can send you an email when the download is ready
-    "includeClosures": "false" }
-    return data_download_json
+    return {
+        "unit": "IMPERIAL",
+        "fields": fields,
+        "xdSegIds": xd_segments,
+        "timezone": timezone,
+        "dateRanges": [
+            {"start": start_date, "end": end_date, "daysOfWeek": days_of_week}
+        ],
+        "mapVersion": map_version,
+        "reportType": "DATA_DOWNLOAD",
+        "granularity": bin_size,  # "emailAddresses": [ email ], #optionally, INRIX can send you an email when the download is ready
+        "includeClosures": "false",
+    }
 
 
 #############################################################################
@@ -101,8 +109,8 @@ def request_token(email, password):
         file_not_exist = False
     except:
         file_not_exist = True
-# Request new token if it has or will expire within 5 minutes, or dosen't exist yet
-    if file_not_exist or now + datetime.timedelta(minutes=5) > expiration:
+# Request new token if it has or will expire within 10 minutes, or dosen't exist yet
+    if file_not_exist or now + datetime.timedelta(minutes=10) > expiration:
         print('Requesting new security token.')
         security_token_json = {"email" : email,"password" : password}
         r = requests.post(security_token_url, json = security_token_json)
@@ -132,7 +140,7 @@ def request_data(data_download_json, security_token):
         job_status_state = job_status.json()["state"]
         if job_progress != job_status.json()["progress"]:
             job_progress = job_status.json()["progress"]
-            print('Job Status on the RITIS side: ' + job_progress)
+            print('Job Status on the INRIX side: ' + job_progress)
     # If we've made it through the while loop sucessuflly, that should mean the report is ready! :)
     print('REQUEST SUCCESS!!! Please wait while data is downloaded and organized.')
     return report_id
@@ -166,22 +174,28 @@ def download_and_extract(report_id, security_token):
             emergency_exit += 1
     # Delete the zipped folder
     os.remove(folder + report_id + '.zip')
-    print('Converting Date Time column to timestamp format which can be read by Excel, this could take a while, please wait.')
+    print('Tidying up now, almost done.')
     # Read csv file into a dataframe
     df = pd.read_csv(folder + data_name + conflict_check + '/data.csv')
-    # Convert Date Time column to datetime formate
-    df['Date Time'] = pd.to_datetime(df['Date Time'])
+    # Convert Date Time column to datetime format
+    df['Date Time'] = pd.to_datetime(df['Date Time'], utc=True)
     # Remove timezone
-    df['Date Time'] = df['Date Time'].dt.tz_localize(None)
+    df['Date Time'] = df['Date Time'].dt.tz_convert('US/Pacific').dt.tz_localize(None)
     # Write back to the file
-    df.to_csv(folder + data_name + conflict_check + '/data.csv', index=False)
+    # If calling from Daily Downloader, save to parquet file because its faster and lighter
+    # If calling from this module manually save to CSV so it's human readable 
+    if __name__ == '__main__':
+        df.to_csv(folder + data_name + conflict_check + '/data.csv', index=False)
+    else:
+        df.to_parquet(folder + daily_folder + start_date + '.parquet', index=False)
+        shutil.rmtree(folder + data_name)
     return conflict_check
 
 # This function will only be called from the Daily Downloader module
-def for_daily_downloader(conflict_check):
-    shutil.move(folder + data_name + conflict_check + '/data.csv', folder + daily_folder + start_date + '.csv')
-    time.sleep(seconds_to_sleep)
-    shutil.rmtree(folder + data_name + conflict_check)
+#def for_daily_downloader(conflict_check):
+    #shutil.move(folder + data_name + conflict_check + '/data.parquet', folder + daily_folder + start_date + '.parquet')
+    #time.sleep(seconds_to_sleep)
+    #shutil.rmtree(folder + data_name + conflict_check)
 
 # One function to rule them all...
 def main():
@@ -192,8 +206,8 @@ def main():
     conflict_check = download_and_extract(report_id, security_token)
     if __name__ == '__main__':
         print('\n\n', '-' * 100, '\n DOWNLOAD SUCCESS!\n Everything is now complete, you may access the data in ' + folder + '\n', '-' * 100, '\n\n')
-    else:
-        for_daily_downloader(conflict_check)
+    #else:
+        #for_daily_downloader(conflict_check)
 
 # Only call the main function if this module is being run, as opposed to if it is imported into the Daily Downloader module
 if __name__ == '__main__':
