@@ -1,8 +1,7 @@
-### Date created
-2/16/2021
-
 ### Project Title
-Travel Time Data Download and Analytics 
+Travel Time Data Download and Analytics
+
+Please send questions to shawn.strasser@odot.oregon.gov
 
 ### Description
 Python code for automated download and analytics of XD segment data from INRIX Roadway Analytics API, including speed and travel time.
