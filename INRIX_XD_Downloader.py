@@ -16,6 +16,8 @@ folder = '//scdata2/signalshar/Data_Analysis/INRIX_API/Speed_Data/' #define the 
 xd_segment_filename = 'segments.txt' # rename as needed, but must be a text file with segments separated by commas
 start_date = '2021-11-5' # format must be 'yyyy-mm-dd'
 end_date = '2021-11-07'   # end date is inclusive, and MUST BE BEFORE TODAY
+start_time = '06:00'
+end_time = '19:00'
 bin_size = 15 # (1, 5, 15, or 60)
 days_of_week = [ 1, 2, 3, 4, 5, 6, 7 ]
 data_name = 'data' + start_date + '_' + end_date # name of the folder with the downloaded data
@@ -23,7 +25,7 @@ security_token_filename = 'security_token.pickle'
 timezone = 'PST8PDT'
 fields = [ "LOCAL_DATE_TIME", "XDSEGID", "SPEED", "TRAVEL_TIME", "CVALUE", "REF_SPEED" ] # see documentation for available options
 map_version = '2102' #currently on version 21.2 (2102) there is a new version twice per year, so this needs to be updated
-seconds_to_sleep = 5
+seconds_to_sleep = 3
 
 # daily_folder is where daily downloads will be stored. it is not used in this module, it will only be used by the Daily_Downloader module
 daily_folder = 'Daily_Download/' 
@@ -80,6 +82,9 @@ def create_json():
         "timezone": timezone,
         "dateRanges": [
             {"start": start_date, "end": end_date, "daysOfWeek": days_of_week}
+        ],
+        "timeRanges": [
+            {"start": start_time, "end": end_time}
         ],
         "mapVersion": map_version,
         "reportType": "DATA_DOWNLOAD",
