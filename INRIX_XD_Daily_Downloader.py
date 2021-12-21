@@ -13,7 +13,7 @@ with open(last_run_file, 'r') as file:
     last_run = file.read()
 
 last_run = datetime.datetime.strptime(last_run, '%Y-%m-%d').date()
-
+print('good')
 while last_run < today - datetime.timedelta(days=1):
     d.start_date = str(last_run + datetime.timedelta(days=1))
     d.end_date = d.start_date
@@ -24,3 +24,7 @@ while last_run < today - datetime.timedelta(days=1):
     last_run += datetime.timedelta(days=1)
 
 print('=' * 100 + '\nDaily download complete\n' + '=' * 100)
+
+print('Running analytics now')
+exec(open("analytics.py").read())
+print('done')
